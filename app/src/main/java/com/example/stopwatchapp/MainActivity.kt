@@ -1,5 +1,6 @@
 package com.example.stopwatchapp
 
+import TrackPaceScreen
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent

@@ -21,8 +21,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.stopwatchapp.Lap
+import com.example.stopwatchapp.TrainingService
 import com.example.stopwatchapp.ui.theme.StopWatchAppTheme
 import java.util.Locale
+import com.example.stopwatchapp.SessionState
 
 @Composable
 fun TrackPaceScreen(service: TrainingService?) {
@@ -66,7 +68,6 @@ fun TrackPaceScreen(service: TrainingService?) {
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Header Stats
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -77,7 +78,6 @@ fun TrackPaceScreen(service: TrainingService?) {
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Last Lap Pace (Highlight)
             val lastPace = state.laps.firstOrNull()?.paceMinKm ?: "--:--"
             Text(
                 text = lastPace,
@@ -95,7 +95,6 @@ fun TrackPaceScreen(service: TrainingService?) {
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Current Timer
             Text(
                 text = formatTime(state.elapsedTime),
                 style = MaterialTheme.typography.displayMedium.copy(
@@ -107,7 +106,6 @@ fun TrackPaceScreen(service: TrainingService?) {
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Controls
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
@@ -153,7 +151,6 @@ fun TrackPaceScreen(service: TrainingService?) {
         }
     }
 }
-
 
 @Composable
 fun StatItem(label: String, value: String) {
