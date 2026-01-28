@@ -3,6 +3,8 @@ package com.example.stopwatchapp
 import android.content.ComponentName
 import android.content.Intent
 import android.content.ServiceConnection
+import android.media.AudioManager
+import android.media.ToneGenerator
 import android.os.Bundle
 import android.os.IBinder
 import android.view.KeyEvent
@@ -34,6 +36,7 @@ class MainActivity : ComponentActivity() {
 
     private var trainingService by mutableStateOf<TrainingService?>(null)
     private var isBound = false
+    private var toneGenerator: ToneGenerator? = null
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
@@ -58,6 +61,8 @@ class MainActivity : ComponentActivity() {
         // Allow showing over lockscreen
         setShowWhenLocked(true)
         setTurnScreenOn(true)
+
+        toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
 
         val intent = Intent(this, TrainingService::class.java)
         startService(intent)
@@ -99,6 +104,7 @@ class MainActivity : ComponentActivity() {
                                     .fillMaxSize()
                                     .background(Color.Black)
                                     .clickable {
+                                        toneGenerator?.startTone(ToneGenerator.TONE_PROP_ACK, 150)
                                         service.showUi()
                                     }
                             )
@@ -135,6 +141,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        toneGenerator?.release()
         if (isBound) {
             unbindService(connection)
             isBound = false
