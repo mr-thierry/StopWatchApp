@@ -6,6 +6,8 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.media.AudioManager
+import android.media.ToneGenerator
 import android.os.Binder
 import android.os.IBinder
 import android.speech.tts.TextToSpeech
@@ -32,6 +34,7 @@ class TrainingService : Service(), TextToSpeech.OnInitListener {
     private lateinit var dataStoreManager: DataStoreManager
     private var tts: TextToSpeech? = null
     private var isTtsReady = false
+    private var toneGenerator: ToneGenerator? = null
 
     private val _sessionState = MutableStateFlow(SessionState())
     val sessionState: StateFlow<SessionState> = _sessionState.asStateFlow()
@@ -50,12 +53,14 @@ class TrainingService : Service(), TextToSpeech.OnInitListener {
 
         dataStoreManager = DataStoreManager(applicationContext)
         tts = TextToSpeech(this, this)
+        toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
 
         createNotificationChannel()
     }
 
     fun showUi() {
         Timber.d("TRLOG showUi")
+        toneGenerator?.startTone(ToneGenerator.TONE_PROP_ACK, 150)
         _sessionState.update { it.copy(isUiVisible = true) }
         uiHideJob?.cancel()
         
@@ -211,6 +216,7 @@ class TrainingService : Service(), TextToSpeech.OnInitListener {
         super.onDestroy()
         tts?.stop()
         tts?.shutdown()
+        toneGenerator?.release()
         serviceScope.cancel()
     }
 
