@@ -13,6 +13,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import com.example.stopwatchapp.ui.theme.StopWatchAppTheme
@@ -20,7 +23,7 @@ import timber.log.Timber
 
 class MainActivity : ComponentActivity() {
 
-    private var trainingService: TrainingService? = null
+    private var trainingService by mutableStateOf<TrainingService?>(null)
     private var isBound = false
 
     private val connection = object : ServiceConnection {
