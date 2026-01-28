@@ -51,6 +51,7 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.timber)
+    implementation(libs.androidx.compose.animation)
 
 
     testImplementation(libs.junit)

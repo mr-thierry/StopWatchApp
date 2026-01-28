@@ -6,6 +6,10 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.os.Binder
 import android.os.IBinder
 import android.speech.tts.TextToSpeech
@@ -18,7 +22,9 @@ import kotlinx.coroutines.flow.update
 import timber.log.Timber
 import java.util.Locale
 
-class TrainingService : Service(), TextToSpeech.OnInitListener {
+private const val SCREEN_ON_COOLDOWN = 5000L // 5 seconds cooldown
+
+class TrainingService : Service(), TextToSpeech.OnInitListener, SensorEventListener {
 
     private val binder = LocalBinder()
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -26,57 +32,95 @@ class TrainingService : Service(), TextToSpeech.OnInitListener {
     private var tts: TextToSpeech? = null
     private var isTtsReady = false
 
+    private var sensorManager: SensorManager? = null
+    private var accelerometer: Sensor? = null
+    
+    private var lastScreenOnTime = 0L
+
     private val _sessionState = MutableStateFlow(SessionState())
     val sessionState: StateFlow<SessionState> = _sessionState.asStateFlow()
 
     private var timerJob: Job? = null
+    private var uiHideJob: Job? = null
 
     inner class LocalBinder : Binder() {
         fun getService(): TrainingService = this@TrainingService
     }
 
-    override fun onBind(intent: Intent?): IBinder {
-        Timber.d("TRLOG onBind")
-        return binder
-    }
+    override fun onBind(intent: Intent?): IBinder = binder
 
     override fun onCreate() {
         super.onCreate()
         
-        Timber.d("TRLOG onCreate")
-        
+
         dataStoreManager = DataStoreManager(applicationContext)
         tts = TextToSpeech(this, this)
-        createNotificationChannel()
         
-        serviceScope.launch {
-            dataStoreManager.sessionState.collect { savedState ->
-                Timber.d("TRLOG dataStoreManager.sessionState.collect: $savedState")
-                // Initial load
-                if (_sessionState.value == SessionState()) {
-                    Timber.d("TRLOG Initial load of session state")
-                    _sessionState.value = savedState
-                    if (savedState.isRunning) {
-                        Timber.d("TRLOG Session was running, restarting")
-                        startForeground(NOTIFICATION_ID, createNotification())
-                        startTimer()
-                    }
+        sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
+        accelerometer = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        
+        createNotificationChannel()
+    }
+
+    private fun registerSensor() {
+        accelerometer?.let {
+            sensorManager?.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+        }
+    }
+
+    private fun unregisterSensor() {
+        sensorManager?.unregisterListener(this)
+        Timber.d("TRLOG Accelerometer unregistered")
+    }
+
+    override fun onSensorChanged(event: SensorEvent?) {
+        if (event?.sensor?.type == Sensor.TYPE_ACCELEROMETER) {
+            val z = event.values[2]
+            // If Z is high, the phone is horizontal (facing up)
+            // 9.8 is perfectly flat. Let's trigger around 7.5+
+            if (z > 7.5f) {
+                val currentTime = System.currentTimeMillis()
+                if (currentTime - lastScreenOnTime > SCREEN_ON_COOLDOWN) {
+                    showUi()
+                    wakeUpScreen()
+                    lastScreenOnTime = currentTime
                 }
             }
         }
     }
 
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+
+    fun showUi() {
+        Timber.d("TRLOG showUi")
+        _sessionState.update { it.copy(isUiVisible = true) }
+        uiHideJob?.cancel()
+        
+        // Only start the auto-hide timer if the session is currently running
+        if (_sessionState.value.isRunning) {
+            uiHideJob = serviceScope.launch {
+                delay(4000)
+                hideUi()
+            }
+        }
+    }
+
+    fun hideUi() {
+        _sessionState.update { it.copy(isUiVisible = false) }
+    }
+
+    private fun wakeUpScreen() {
+        val intent = Intent(this, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        }
+        startActivity(intent)
+    }
+
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
-            val result = tts?.setLanguage(Locale.getDefault())
-            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                Timber.e("TRLOG TTS: Language not supported")
-            } else {
-                isTtsReady = true
-                Timber.d("TRLOG TTS: Ready")
-            }
-        } else {
-            Timber.e("TRLOG TTS: Initialization failed")
+            tts?.language = Locale.getDefault()
+            isTtsReady = true
         }
     }
 
@@ -86,10 +130,8 @@ class TrainingService : Service(), TextToSpeech.OnInitListener {
             if (parts.size == 2) {
                 val minutes = parts[0].toIntOrNull() ?: 0
                 val seconds = parts[1].toIntOrNull() ?: 0
-
                 val minText = if (minutes == 1) "minute" else "minutes"
                 val secText = if (seconds == 1) "second" else "seconds"
-
                 val speechText = "$minutes $minText $seconds $secText per kilometer"
                 tts?.speak(speechText, TextToSpeech.QUEUE_FLUSH, null, "PaceId")
             }
@@ -97,12 +139,10 @@ class TrainingService : Service(), TextToSpeech.OnInitListener {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Timber.d("TRLOG onStartCommand")
         return START_STICKY
     }
 
     private fun startTimer() {
-        Timber.d("TRLOG startTimer")
         timerJob?.cancel()
         timerJob = serviceScope.launch {
             while (isActive) {
@@ -114,126 +154,93 @@ class TrainingService : Service(), TextToSpeech.OnInitListener {
     }
 
     private fun stopTimer() {
-        Timber.d("TRLOG stopTimer")
         timerJob?.cancel()
         timerJob = null
         saveState()
     }
 
     fun toggleStartStop() {
-        Timber.d("TRLOG toggleStartStop")
-
+        showUi()
         if (_sessionState.value.isRunning) {
             addLap()
         }
 
         _sessionState.update { 
             val newState = it.copy(isRunning = !it.isRunning)
-            Timber.d("TRLOG toggleStartStop: newState.isRunning=${newState.isRunning}")
             if (newState.isRunning) {
                 startForeground(NOTIFICATION_ID, createNotification())
                 startTimer()
+                registerSensor()
             } else {
                 stopTimer()
                 stopForeground(STOP_FOREGROUND_DETACH)
+                unregisterSensor()
             }
             newState
         }
     }
 
     fun addLap() {
-        Timber.d("TRLOG addLap")
+        showUi()
         _sessionState.update { current ->
-            if (!current.isRunning) {
-                Timber.d("TRLOG addLap: Not running, skipping")
-                return@update current
-            }
-            
+            if (!current.isRunning) return@update current
             val durationMs = current.elapsedTime
             val distanceM = current.trackDistanceM
             val paceMinKm = calculatePace(durationMs, distanceM)
-            
-            val newLap = Lap(
-                lapNumber = current.laps.size + 1,
-                durationMs = durationMs,
-                distanceM = distanceM,
-                paceMinKm = paceMinKm
-            )
-            Timber.d("TRLOG addLap: New lap=$newLap")
-
+            val newLap = Lap(current.laps.size + 1, durationMs, distanceM, paceMinKm)
             speakPace(paceMinKm)
-            
-            current.copy(
-                elapsedTime = 0,
-                laps = listOf(newLap) + current.laps
-            )
+            current.copy(elapsedTime = 0, laps = listOf(newLap) + current.laps)
         }
         saveState()
     }
 
     fun resetSession() {
-        Timber.d("TRLOG resetSession")
         stopTimer()
         _sessionState.value = SessionState(trackDistanceM = _sessionState.value.trackDistanceM)
         saveState()
         stopForeground(STOP_FOREGROUND_REMOVE)
+        unregisterSensor()
     }
 
     fun setTrackDistance(distanceM: Int) {
-        Timber.d("TRLOG setTrackDistance: distanceM=$distanceM")
         _sessionState.update { it.copy(trackDistanceM = distanceM) }
         saveState()
     }
 
     private fun calculatePace(ms: Long, distanceM: Int): String {
-        Timber.d("TRLOG calculatePace: ms=$ms, distanceM=$distanceM")
         if (distanceM == 0) return "0:00"
         val seconds = ms / 1000.0
         val paceDecimal = (seconds * 1000.0) / (60.0 * distanceM)
         val minutes = paceDecimal.toInt()
         val secs = ((paceDecimal - minutes) * 60).toInt()
-        val result = String.format(Locale.getDefault(), "%d:%02d", minutes, secs)
-        Timber.d("TRLOG calculatePace result: $result")
-        return result
+        return String.format(Locale.getDefault(), "%d:%02d", minutes, secs)
     }
 
     private fun saveState() {
         val stateToSave = _sessionState.value
-        Timber.d("TRLOG saveState: $stateToSave")
-        serviceScope.launch {
-            dataStoreManager.saveSessionState(stateToSave)
-        }
+        serviceScope.launch { dataStoreManager.saveSessionState(stateToSave) }
     }
 
     private fun createNotificationChannel() {
-        Timber.d("TRLOG createNotificationChannel")
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            "Training Tracking",
-            NotificationManager.IMPORTANCE_LOW
-        )
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(channel)
+        val channel = NotificationChannel(CHANNEL_ID, "Training Tracking", NotificationManager.IMPORTANCE_LOW)
+        getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
     private fun createNotification(): Notification {
         val intent = Intent(this, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(
-            this, 0, intent, PendingIntent.FLAG_IMMUTABLE
-        )
-
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        val pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("TrackPace Active")
             .setContentText("Timer: ${formatTime(_sessionState.value.elapsedTime)}")
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
-            .build()
+
+        return builder.build()
     }
 
     private fun updateNotification() {
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.notify(NOTIFICATION_ID, createNotification())
+        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, createNotification())
     }
 
     private fun formatTime(ms: Long): String {
@@ -245,10 +252,10 @@ class TrainingService : Service(), TextToSpeech.OnInitListener {
     }
 
     override fun onDestroy() {
-        Timber.d("TRLOG onDestroy")
         super.onDestroy()
         tts?.stop()
         tts?.shutdown()
+        unregisterSensor()
         serviceScope.cancel()
     }
 

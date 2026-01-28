@@ -16,5 +16,6 @@ data class SessionState(
     val startTime: Long = 0L,
     val elapsedTime: Long = 0L,
     val laps: List<Lap> = emptyList(),
-    val trackDistanceM: Int = 370 // Default to Delson
+    val trackDistanceM: Int = 370, // Default to Delson
+    val isUiVisible: Boolean = true
 )

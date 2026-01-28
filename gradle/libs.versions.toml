@@ -12,6 +12,7 @@ datastore = "1.2.0"
 serialization = "1.10.0"
 media = "1.7.1"
 timber = "5.0.1"
+animation = "1.10.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -32,6 +33,7 @@ androidx-datastore-preferences = { group = "androidx.datastore", name = "datasto
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
 androidx-media = { group = "androidx.media", name = "media", version.ref = "media" }
 timber = { group = "com.jakewharton.timber", name = "timber", version.ref = "timber" }
+androidx-compose-animation = { group = "androidx.compose.animation", name = "animation", version.ref = "animation" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
