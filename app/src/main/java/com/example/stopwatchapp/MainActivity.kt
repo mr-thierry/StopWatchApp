@@ -18,7 +18,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import com.example.stopwatchapp.ui.theme.StopWatchAppTheme
+import com.example.stopwatchapp.ui.theme.AppTheme
 import timber.log.Timber
 
 class MainActivity : ComponentActivity() {
@@ -55,7 +55,7 @@ class MainActivity : ComponentActivity() {
         bindService(intent, connection, BIND_AUTO_CREATE)
 
         setContent {
-            StopWatchAppTheme(darkTheme = true) {
+            AppTheme(darkTheme = true) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = Color.Black

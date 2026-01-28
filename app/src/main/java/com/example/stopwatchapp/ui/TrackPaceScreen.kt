@@ -22,11 +22,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.stopwatchapp.Lap
 import com.example.stopwatchapp.TrainingService
-import com.example.stopwatchapp.ui.theme.StopWatchAppTheme
 import java.util.Locale
 import com.example.stopwatchapp.SessionState
 import timber.log.Timber
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TrackPaceScreen(service: TrainingService?) {
     val state by service?.sessionState?.collectAsState() ?: remember { mutableStateOf(SessionState()) }
@@ -44,7 +44,7 @@ fun TrackPaceScreen(service: TrainingService?) {
                     service?.resetSession()
                     showResetDialog = false
                 }) {
-                    Text("Reset", color = Color.Red)
+                    Text("Reset", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
@@ -57,10 +57,23 @@ fun TrackPaceScreen(service: TrainingService?) {
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = Color.Black,
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text("TRACK PACE", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black) },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.primary
+                )
+            )
+        },
         bottomBar = {
-            TrackSelectionToggle(state.trackDistanceM) { distance ->
-                service?.setTrackDistance(distance)
+            Surface(
+                tonalElevation = 8.dp,
+                shadowElevation = 8.dp
+            ) {
+                TrackSelectionToggle(state.trackDistanceM) { distance ->
+                    service?.setTrackDistance(distance)
+                }
             }
         }
     ) { innerPadding ->
@@ -73,74 +86,102 @@ fun TrackPaceScreen(service: TrainingService?) {
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 StatItem(label = "LAP", value = "${state.laps.size + 1}")
+                VerticalDivider(modifier = Modifier.height(40.dp).padding(horizontal = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
                 StatItem(label = "TOTAL DIST", value = "${state.laps.size * state.trackDistanceM}m")
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
-            val lastPace = state.laps.firstOrNull()?.paceMinKm ?: "--:--"
-            Text(
-                text = lastPace,
-                style = MaterialTheme.typography.displayLarge.copy(
-                    fontSize = 80.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Green
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                 )
-            )
-            Text(
-                text = "MIN/KM (LAST LAP)",
-                style = MaterialTheme.typography.labelMedium,
-                color = Color.Gray
-            )
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp).fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    val lastPace = state.laps.firstOrNull()?.paceMinKm ?: "--:--"
+                    Text(
+                        text = lastPace,
+                        style = MaterialTheme.typography.displayLarge.copy(
+                            fontSize = 80.sp,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    )
+                    Text(
+                        text = "MIN/KM LAST LAP",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(
                 text = formatTime(state.elapsedTime),
                 style = MaterialTheme.typography.displayMedium.copy(
-                    fontSize = 60.sp,
-                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                    fontSize = 64.sp,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold
                 ),
-                color = Color.White
+                color = MaterialTheme.colorScheme.onBackground
             )
 
             Spacer(modifier = Modifier.height(32.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Button(
                     onClick = { service?.toggleStartStop() },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (state.isRunning) Color.DarkGray else Color.Blue
+                        containerColor = if (state.isRunning) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                        contentColor = if (state.isRunning) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary
                     ),
-                    modifier = Modifier.weight(1f).padding(8.dp)
+                    modifier = Modifier.weight(1.2f).height(64.dp)
                 ) {
-                    Text(if (state.isRunning) "STOP" else "START")
+                    Text(
+                        if (state.isRunning) "STOP" else "START",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
 
-                Button(
+                FilledTonalButton(
                     onClick = { service?.addLap() },
                     enabled = state.isRunning,
-                    modifier = Modifier.weight(1f).padding(8.dp)
+                    modifier = Modifier.weight(1f).height(64.dp)
                 ) {
-                    Text("LAP")
+                    Text("LAP", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 }
 
-                Button(
+                IconButton(
                     onClick = { showResetDialog = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                    modifier = Modifier.weight(1f).padding(8.dp)
+                    modifier = Modifier.size(64.dp).background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.medium)
                 ) {
-                    Text("RESET", color = Color.Gray)
+                    Text("RST", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Lap List Header
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("LAP", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.outline)
+                Text("TIME", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.outline)
+                Text("PACE", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.outline)
+            }
 
             // Lap List
             LazyColumn(
@@ -148,7 +189,7 @@ fun TrackPaceScreen(service: TrainingService?) {
             ) {
                 items(state.laps) { lap ->
                     LapRow(lap)
-                    HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 }
             }
         }
@@ -158,22 +199,42 @@ fun TrackPaceScreen(service: TrainingService?) {
 @Composable
 fun StatItem(label: String, value: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = label, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-        Text(text = value, style = MaterialTheme.typography.titleLarge, color = Color.White)
+        Text(text = label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
+        Text(text = value, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground, fontWeight = FontWeight.Bold)
     }
 }
 
 @Composable
 fun LapRow(lap: Lap) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+    Surface(
+        color = Color.Transparent,
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Text(text = "L${lap.lapNumber}", color = Color.Gray)
-        Text(text = formatTime(lap.durationMs), color = Color.White, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
-        Text(text = lap.paceMinKm, color = Color.Green, fontWeight = FontWeight.Bold)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp, horizontal = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = String.format(Locale.getDefault(), "%02d", lap.lapNumber),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.outline
+            )
+            Text(
+                text = formatTime(lap.durationMs),
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+            )
+            Text(
+                text = lap.paceMinKm,
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Black
+            )
+        }
     }
 }
 
@@ -182,26 +243,27 @@ fun TrackSelectionToggle(currentDistance: Int, onSelect: (Int) -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.DarkGray.copy(alpha = 0.3f))
+            .background(MaterialTheme.colorScheme.surface)
             .padding(16.dp)
             .navigationBarsPadding(),
-        horizontalArrangement = Arrangement.Center,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        TrackOption("Delson (370m)", currentDistance == 370) { onSelect(370) }
-        Spacer(modifier = Modifier.width(24.dp))
-        TrackOption("Dix30 (630m)", currentDistance == 630) { onSelect(630) }
+        TrackOption("Delson (370m)", currentDistance == 370, Modifier.weight(1f)) { onSelect(370) }
+        TrackOption("Dix30 (630m)", currentDistance == 630, Modifier.weight(1f)) { onSelect(630) }
     }
 }
 
 @Composable
-fun TrackOption(label: String, isSelected: Boolean, onClick: () -> Unit) {
-    TextButton(onClick = onClick) {
-        Text(
-            text = label,
-            color = if (isSelected) Color.White else Color.Gray,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-        )
+fun TrackOption(label: String, isSelected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    if (isSelected) {
+        Button(onClick = onClick, modifier = modifier) {
+            Text(text = label, maxLines = 1)
+        }
+    } else {
+        OutlinedButton(onClick = onClick, modifier = modifier) {
+            Text(text = label, maxLines = 1)
+        }
     }
 }
 
