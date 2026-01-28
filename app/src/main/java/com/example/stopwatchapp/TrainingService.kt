@@ -122,6 +122,11 @@ class TrainingService : Service(), TextToSpeech.OnInitListener {
 
     fun toggleStartStop() {
         Timber.d("TRLOG toggleStartStop")
+
+        if (_sessionState.value.isRunning) {
+            addLap()
+        }
+
         _sessionState.update { 
             val newState = it.copy(isRunning = !it.isRunning)
             Timber.d("TRLOG toggleStartStop: newState.isRunning=${newState.isRunning}")
