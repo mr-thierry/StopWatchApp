@@ -1,39 +1,64 @@
-import android.content.ComponentName
-import android.content.Context
-import android.content.Intent
-import android.content.ServiceConnection
-import android.os.Bundle
-import android.os.IBinder
-import android.view.KeyEvent
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.VerticalDivider
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.stopwatchapp.Lap
-import com.example.stopwatchapp.TrainingService
-import java.util.Locale
 import com.example.stopwatchapp.SessionState
+import com.example.stopwatchapp.TrainingService
 import timber.log.Timber
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TrackPaceScreen(service: TrainingService?) {
-    val state by service?.sessionState?.collectAsState() ?: remember { mutableStateOf(SessionState()) }
+fun TrackPaceScreen(
+    state: SessionState,
+    onResetClick: () -> Unit,
+    onStopClick: () -> Unit,
+    onAddLapClick: () -> Unit,
+    selectTrack: (Int) -> Unit,
+) {
     var showResetDialog by remember { mutableStateOf(false) }
-
-    Timber.d("TRLOG TrackPaceScreen state=$state service:$service")
-
     if (showResetDialog) {
         AlertDialog(
             onDismissRequest = { showResetDialog = false },
@@ -41,7 +66,7 @@ fun TrackPaceScreen(service: TrainingService?) {
             text = { Text("This will clear all lap data.") },
             confirmButton = {
                 TextButton(onClick = {
-                    service?.resetSession()
+                    onResetClick()
                     showResetDialog = false
                 }) {
                     Text("Reset", color = MaterialTheme.colorScheme.error)
@@ -57,23 +82,16 @@ fun TrackPaceScreen(service: TrainingService?) {
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text("TRACK PACE", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black) },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.primary
-                )
-            )
-        },
+        topBar = {},
         bottomBar = {
             Surface(
                 tonalElevation = 8.dp,
                 shadowElevation = 8.dp
             ) {
-                TrackSelectionToggle(state.trackDistanceM) { distance ->
-                    service?.setTrackDistance(distance)
-                }
+                TrackSelectionToggle(
+                    currentDistance = state.trackDistanceM,
+                    onSelect = selectTrack,
+                )
             }
         }
     ) { innerPadding ->
@@ -89,11 +107,16 @@ fun TrackPaceScreen(service: TrainingService?) {
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 StatItem(label = "LAP", value = "${state.laps.size + 1}")
-                VerticalDivider(modifier = Modifier.height(40.dp).padding(horizontal = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                VerticalDivider(
+                    modifier = Modifier
+                        .height(40.dp)
+                        .padding(horizontal = 8.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
                 StatItem(label = "TOTAL DIST", value = "${state.laps.size * state.trackDistanceM}m")
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -102,14 +125,16 @@ fun TrackPaceScreen(service: TrainingService?) {
                 )
             ) {
                 Column(
-                    modifier = Modifier.padding(24.dp).fillMaxWidth(),
+                    modifier = Modifier
+                        .padding(8.dp)
+                        .fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     val lastPace = state.laps.firstOrNull()?.paceMinKm ?: "--:--"
                     Text(
                         text = lastPace,
                         style = MaterialTheme.typography.displayLarge.copy(
-                            fontSize = 80.sp,
+                            fontSize = 32.sp,
                             fontWeight = FontWeight.Black,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -127,8 +152,8 @@ fun TrackPaceScreen(service: TrainingService?) {
             Text(
                 text = formatTime(state.elapsedTime),
                 style = MaterialTheme.typography.displayMedium.copy(
-                    fontSize = 64.sp,
-                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    fontSize = 32.sp,
+                    fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold
                 ),
                 color = MaterialTheme.colorScheme.onBackground
@@ -141,12 +166,14 @@ fun TrackPaceScreen(service: TrainingService?) {
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Button(
-                    onClick = { service?.toggleStartStop() },
+                    onClick = onStopClick,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (state.isRunning) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                         contentColor = if (state.isRunning) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary
                     ),
-                    modifier = Modifier.weight(1.2f).height(64.dp)
+                    modifier = Modifier
+                        .weight(1.2f)
+                        .height(64.dp)
                 ) {
                     Text(
                         if (state.isRunning) "STOP" else "START",
@@ -156,18 +183,22 @@ fun TrackPaceScreen(service: TrainingService?) {
                 }
 
                 FilledTonalButton(
-                    onClick = { service?.addLap() },
+                    onClick = onAddLapClick,
                     enabled = state.isRunning,
-                    modifier = Modifier.weight(1f).height(64.dp)
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(64.dp)
                 ) {
                     Text("LAP", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 }
 
                 IconButton(
                     onClick = { showResetDialog = true },
-                    modifier = Modifier.size(64.dp).background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.medium)
+                    modifier = Modifier
+                        .size(64.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.medium)
                 ) {
-                    Text("RST", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("RESET", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 
@@ -175,7 +206,9 @@ fun TrackPaceScreen(service: TrainingService?) {
 
             // Lap List Header
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text("LAP", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.outline)
@@ -185,7 +218,9 @@ fun TrackPaceScreen(service: TrainingService?) {
 
             // Lap List
             LazyColumn(
-                modifier = Modifier.fillMaxWidth().weight(1f)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
             ) {
                 items(state.laps) { lap ->
                     LapRow(lap)
@@ -226,7 +261,7 @@ fun LapRow(lap: Lap) {
                 text = formatTime(lap.durationMs),
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onSurface,
-                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                fontFamily = FontFamily.Monospace
             )
             Text(
                 text = lap.paceMinKm,
@@ -273,4 +308,25 @@ private fun formatTime(ms: Long): String {
     val seconds = totalSecs % 60
     val hundredths = (ms % 1000) / 10
     return String.format(Locale.getDefault(), "%02d:%02d.%02d", minutes, seconds, hundredths)
+}
+
+
+@Composable
+@Preview
+fun TrackPaceScreenPreview() {
+    TrackPaceScreen(
+        state = SessionState(
+            isRunning = true,
+            startTime = 0,
+            elapsedTime = 1000,
+            laps = listOf(
+                Lap(1, 1000, 370, "1:00"),
+            ),
+
+        ),
+        onResetClick = {},
+        onStopClick = {},
+        onAddLapClick = {},
+        selectTrack = {}
+    )
 }

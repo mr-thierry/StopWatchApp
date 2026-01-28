@@ -6,36 +6,32 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
-import android.hardware.Sensor
-import android.hardware.SensorEvent
-import android.hardware.SensorEventListener
-import android.hardware.SensorManager
 import android.os.Binder
 import android.os.IBinder
 import android.speech.tts.TextToSpeech
 import androidx.core.app.NotificationCompat
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.util.Locale
 
-private const val SCREEN_ON_COOLDOWN = 5000L // 5 seconds cooldown
-
-class TrainingService : Service(), TextToSpeech.OnInitListener, SensorEventListener {
+class TrainingService : Service(), TextToSpeech.OnInitListener {
 
     private val binder = LocalBinder()
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private lateinit var dataStoreManager: DataStoreManager
     private var tts: TextToSpeech? = null
     private var isTtsReady = false
-
-    private var sensorManager: SensorManager? = null
-    private var accelerometer: Sensor? = null
-    
-    private var lastScreenOnTime = 0L
 
     private val _sessionState = MutableStateFlow(SessionState())
     val sessionState: StateFlow<SessionState> = _sessionState.asStateFlow()
@@ -51,45 +47,12 @@ class TrainingService : Service(), TextToSpeech.OnInitListener, SensorEventListe
 
     override fun onCreate() {
         super.onCreate()
-        
 
         dataStoreManager = DataStoreManager(applicationContext)
         tts = TextToSpeech(this, this)
-        
-        sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
-        accelerometer = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-        
+
         createNotificationChannel()
     }
-
-    private fun registerSensor() {
-        accelerometer?.let {
-            sensorManager?.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
-        }
-    }
-
-    private fun unregisterSensor() {
-        sensorManager?.unregisterListener(this)
-        Timber.d("TRLOG Accelerometer unregistered")
-    }
-
-    override fun onSensorChanged(event: SensorEvent?) {
-        if (event?.sensor?.type == Sensor.TYPE_ACCELEROMETER) {
-            val z = event.values[2]
-            // If Z is high, the phone is horizontal (facing up)
-            // 9.8 is perfectly flat. Let's trigger around 7.5+
-            if (z > 7.5f) {
-                val currentTime = System.currentTimeMillis()
-                if (currentTime - lastScreenOnTime > SCREEN_ON_COOLDOWN) {
-                    showUi()
-                    wakeUpScreen()
-                    lastScreenOnTime = currentTime
-                }
-            }
-        }
-    }
-
-    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
     fun showUi() {
         Timber.d("TRLOG showUi")
@@ -107,14 +70,6 @@ class TrainingService : Service(), TextToSpeech.OnInitListener, SensorEventListe
 
     fun hideUi() {
         _sessionState.update { it.copy(isUiVisible = false) }
-    }
-
-    private fun wakeUpScreen() {
-        val intent = Intent(this, MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-        }
-        startActivity(intent)
     }
 
     override fun onInit(status: Int) {
@@ -160,30 +115,31 @@ class TrainingService : Service(), TextToSpeech.OnInitListener, SensorEventListe
     }
 
     fun toggleStartStop() {
-        showUi()
-        if (_sessionState.value.isRunning) {
-            addLap()
-        }
-
-        _sessionState.update { 
+        _sessionState.update {
             val newState = it.copy(isRunning = !it.isRunning)
             if (newState.isRunning) {
                 startForeground(NOTIFICATION_ID, createNotification())
                 startTimer()
-                registerSensor()
             } else {
                 stopTimer()
                 stopForeground(STOP_FOREGROUND_DETACH)
-                unregisterSensor()
             }
             newState
+        }
+
+        showUi()
+        if (_sessionState.value.isRunning) {
+            addLap()
         }
     }
 
     fun addLap() {
         showUi()
         _sessionState.update { current ->
-            if (!current.isRunning) return@update current
+            if (!current.isRunning) {
+                return@update current
+            }
+
             val durationMs = current.elapsedTime
             val distanceM = current.trackDistanceM
             val paceMinKm = calculatePace(durationMs, distanceM)
@@ -199,7 +155,6 @@ class TrainingService : Service(), TextToSpeech.OnInitListener, SensorEventListe
         _sessionState.value = SessionState(trackDistanceM = _sessionState.value.trackDistanceM)
         saveState()
         stopForeground(STOP_FOREGROUND_REMOVE)
-        unregisterSensor()
     }
 
     fun setTrackDistance(distanceM: Int) {
@@ -255,7 +210,6 @@ class TrainingService : Service(), TextToSpeech.OnInitListener, SensorEventListe
         super.onDestroy()
         tts?.stop()
         tts?.shutdown()
-        unregisterSensor()
         serviceScope.cancel()
     }
 

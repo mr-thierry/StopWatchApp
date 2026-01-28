@@ -16,18 +16,23 @@ import androidx.compose.animation.expandIn
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsCompat.Type.systemBars
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
 import com.example.stopwatchapp.ui.theme.AppTheme
 import timber.log.Timber
 
@@ -52,10 +57,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        
+
         // Keep screen on
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        
+
         // Allow showing over lockscreen
         setShowWhenLocked(true)
         setTurnScreenOn(true)
@@ -69,30 +74,41 @@ class MainActivity : ComponentActivity() {
                 val service = trainingService
                 if (service != null) {
                     val state by service.sessionState.collectAsState()
-                    
+
                     // Fullscreen control logic
                     LaunchedEffect(state.isUiVisible) {
                         val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
                         if (!state.isUiVisible) {
-                            windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
-                            windowInsetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                            windowInsetsController.hide(systemBars())
+                            windowInsetsController.systemBarsBehavior = BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                         } else {
-                            windowInsetsController.show(WindowInsetsCompat.Type.systemBars())
+                            windowInsetsController.show(systemBars())
                         }
                     }
 
                     Box(modifier = Modifier.fillMaxSize()) {
-                        TrackPaceScreen(service)
+                        val state: SessionState by service.sessionState.collectAsState()
+
+                        TrackPaceScreen(
+                            state = state,
+                            onResetClick = { service.resetSession() },
+                            onStopClick = { service.toggleStartStop() },
+                            onAddLapClick = { service.addLap() },
+                            selectTrack = { distance-> service.setTrackDistance(distance)},
+                        )
 
                         AnimatedVisibility(
                             visible = !state.isUiVisible,
-                            enter= fadeIn(),
-                            exit =  fadeOut(),
+                            enter = fadeIn(),
+                            exit = fadeOut(),
                         ) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .background(Color.Black)
+                                    .clickable {
+                                        service.showUi()
+                                    }
                             )
                         }
 
@@ -116,6 +132,7 @@ class MainActivity : ComponentActivity() {
                 trainingService?.toggleStartStop()
                 return true
             }
+
             KeyEvent.KEYCODE_VOLUME_DOWN -> {
                 trainingService?.showUi()
                 trainingService?.addLap()
