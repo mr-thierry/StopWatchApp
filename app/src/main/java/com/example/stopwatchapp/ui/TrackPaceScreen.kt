@@ -25,11 +25,14 @@ import com.example.stopwatchapp.TrainingService
 import com.example.stopwatchapp.ui.theme.StopWatchAppTheme
 import java.util.Locale
 import com.example.stopwatchapp.SessionState
+import timber.log.Timber
 
 @Composable
 fun TrackPaceScreen(service: TrainingService?) {
     val state by service?.sessionState?.collectAsState() ?: remember { mutableStateOf(SessionState()) }
     var showResetDialog by remember { mutableStateOf(false) }
+
+    Timber.d("TRLOG TrackPaceScreen state=$state service:$service")
 
     if (showResetDialog) {
         AlertDialog(

@@ -13,10 +13,10 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import com.example.stopwatchapp.ui.theme.StopWatchAppTheme
+import timber.log.Timber
 
 class MainActivity : ComponentActivity() {
 
@@ -27,10 +27,16 @@ class MainActivity : ComponentActivity() {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
             val binder = service as TrainingService.LocalBinder
             trainingService = binder.getService()
+
+            Timber.d("TRLOG MainActivity onServiceConnected trainingService=$trainingService")
+
             isBound = true
         }
 
         override fun onServiceDisconnected(arg0: ComponentName) {
+
+            Timber.d("TRLOG MainActivity onServiceDisconnected")
+
             isBound = false
             trainingService = null
         }
@@ -41,7 +47,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         val intent = Intent(this, TrainingService::class.java)
-        bindService(intent, connection, Context.BIND_AUTO_CREATE)
+        // Start the service to ensure it has a lifecycle independent of the Activity binding
+        startService(intent)
+        bindService(intent, connection, BIND_AUTO_CREATE)
 
         setContent {
             StopWatchAppTheme(darkTheme = true) {
