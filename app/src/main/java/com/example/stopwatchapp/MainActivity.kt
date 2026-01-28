@@ -1,6 +1,5 @@
 package com.example.stopwatchapp
 
-import TrackPaceScreen
 import android.content.ComponentName
 import android.content.Intent
 import android.content.ServiceConnection
@@ -12,29 +11,24 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandIn
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsCompat.Type.systemBars
-import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+import com.example.stopwatchapp.ui.TrackPaceScreen
 import com.example.stopwatchapp.ui.theme.AppTheme
-import timber.log.Timber
 
 class MainActivity : ComponentActivity() {
 
@@ -87,14 +81,12 @@ class MainActivity : ComponentActivity() {
                     }
 
                     Box(modifier = Modifier.fillMaxSize()) {
-                        val state: SessionState by service.sessionState.collectAsState()
-
                         TrackPaceScreen(
                             state = state,
                             onResetClick = { service.resetSession() },
                             onStopClick = { service.toggleStartStop() },
                             onAddLapClick = { service.addLap() },
-                            selectTrack = { distance-> service.setTrackDistance(distance)},
+                            selectTrack = { distance -> service.setTrackDistance(distance) },
                         )
 
                         AnimatedVisibility(
@@ -111,7 +103,6 @@ class MainActivity : ComponentActivity() {
                                     }
                             )
                         }
-
                     }
                 } else {
                     Surface(

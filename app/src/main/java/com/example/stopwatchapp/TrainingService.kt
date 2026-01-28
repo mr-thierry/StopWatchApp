@@ -115,6 +115,10 @@ class TrainingService : Service(), TextToSpeech.OnInitListener {
     }
 
     fun toggleStartStop() {
+        if (_sessionState.value.isRunning) {
+            addLap()
+        }
+
         _sessionState.update {
             val newState = it.copy(isRunning = !it.isRunning)
             if (newState.isRunning) {
@@ -128,9 +132,6 @@ class TrainingService : Service(), TextToSpeech.OnInitListener {
         }
 
         showUi()
-        if (_sessionState.value.isRunning) {
-            addLap()
-        }
     }
 
     fun addLap() {
