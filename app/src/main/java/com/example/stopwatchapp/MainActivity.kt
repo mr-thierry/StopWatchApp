@@ -15,22 +15,27 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat.Type.systemBars
 import androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
 import com.example.stopwatchapp.ui.TrackPaceScreen
 import com.example.stopwatchapp.ui.theme.AppTheme
+import kotlinx.coroutines.delay
+import kotlin.random.Random
 
 class MainActivity : ComponentActivity() {
 
@@ -74,15 +79,19 @@ class MainActivity : ComponentActivity() {
                 if (service != null) {
                     val state by service.sessionState.collectAsState()
 
-                    // Fullscreen control logic
+                    // Fullscreen control and luminosity logic
                     LaunchedEffect(state.isUiVisible) {
                         val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
+                        val layoutParams = window.attributes
                         if (!state.isUiVisible) {
                             windowInsetsController.hide(systemBars())
                             windowInsetsController.systemBarsBehavior = BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                            layoutParams.screenBrightness = 0.01f
                         } else {
                             windowInsetsController.show(systemBars())
+                            layoutParams.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
                         }
+                        window.attributes = layoutParams
                     }
 
                     Box(modifier = Modifier.fillMaxSize()) {
@@ -99,15 +108,44 @@ class MainActivity : ComponentActivity() {
                             enter = fadeIn(),
                             exit = fadeOut(),
                         ) {
+                            var containerSize by remember { mutableStateOf(IntSize.Zero) }
+                            var iconOffset by remember { mutableStateOf(IntOffset.Zero) }
+                            val iconSize = 256.dp
+                            val density = LocalDensity.current
+                            val iconSizePx = with(density) { iconSize.roundToPx() }
+
+                            LaunchedEffect(containerSize, state.isUiVisible) {
+                                if (containerSize != IntSize.Zero && !state.isUiVisible) {
+                                    while (true) {
+                                        val maxX = (containerSize.width - iconSizePx).coerceAtLeast(0)
+                                        val maxY = (containerSize.height - iconSizePx).coerceAtLeast(0)
+                                        iconOffset = IntOffset(
+                                            x = Random.nextInt(maxX + 1),
+                                            y = Random.nextInt(maxY + 1)
+                                        )
+                                        delay(10000)
+                                    }
+                                }
+                            }
+
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .background(Color.Black)
+                                    .onSizeChanged { containerSize = it }
                                     .clickable {
                                         toneGenerator?.startTone(ToneGenerator.TONE_PROP_ACK, 150)
                                         service.showUi()
                                     }
-                            )
+                            ) {
+                                Image(
+                                    painter = painterResource(id = R.mipmap.ic_launcher_foreground),
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .size(iconSize)
+                                        .offset { iconOffset }
+                                )
+                            }
                         }
                     }
                 } else {
