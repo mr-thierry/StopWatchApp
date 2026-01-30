@@ -18,16 +18,25 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat.Type.systemBars
@@ -77,74 +86,47 @@ class MainActivity : ComponentActivity() {
             AppTheme(darkTheme = true) {
                 val service = trainingService
                 if (service != null) {
-                    val state by service.sessionState.collectAsState()
+                    val trackUiVisible by service.trackUiVisible.collectAsState(true)
 
                     // Fullscreen control and luminosity logic
-                    LaunchedEffect(state.isUiVisible) {
+                    LaunchedEffect(trackUiVisible) {
                         val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
                         val layoutParams = window.attributes
-                        if (!state.isUiVisible) {
+                        if (trackUiVisible) {
+                            windowInsetsController.show(systemBars())
+                            layoutParams.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+                        } else {
                             windowInsetsController.hide(systemBars())
                             windowInsetsController.systemBarsBehavior = BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                             layoutParams.screenBrightness = 0.01f
-                        } else {
-                            windowInsetsController.show(systemBars())
-                            layoutParams.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
                         }
                         window.attributes = layoutParams
                     }
 
                     Box(modifier = Modifier.fillMaxSize()) {
-                        TrackPaceScreen(
-                            state = state,
-                            onResetClick = { service.resetSession() },
-                            onStopClick = { service.toggleStartStop() },
-                            onAddLapClick = { service.addLap() },
-                            selectTrack = { distance -> service.setTrackDistance(distance) },
-                        )
+                        if (trackUiVisible) {
+                            val state by service.sessionState.collectAsState()
+                            TrackPaceScreen(
+                                isRunning = state.isRunning,
+                                elapsedTime = { state.elapsedTime },
+                                laps = state.laps,
+                                trackDistanceM = state.trackDistanceM,
+
+                                onResetClick = { service.resetSession() },
+                                onStopClick = { service.toggleStartStop() },
+                                onAddLapClick = { service.addLap() },
+                                selectTrack = { distance -> service.setTrackDistance(distance) },
+                            )
+                        }
 
                         AnimatedVisibility(
-                            visible = !state.isUiVisible,
+                            visible = !trackUiVisible,
                             enter = fadeIn(),
                             exit = fadeOut(),
                         ) {
-                            var containerSize by remember { mutableStateOf(IntSize.Zero) }
-                            var iconOffset by remember { mutableStateOf(IntOffset.Zero) }
-                            val iconSize = 256.dp
-                            val density = LocalDensity.current
-                            val iconSizePx = with(density) { iconSize.roundToPx() }
-
-                            LaunchedEffect(containerSize, state.isUiVisible) {
-                                if (containerSize != IntSize.Zero && !state.isUiVisible) {
-                                    while (true) {
-                                        val maxX = (containerSize.width - iconSizePx).coerceAtLeast(0)
-                                        val maxY = (containerSize.height - iconSizePx).coerceAtLeast(0)
-                                        iconOffset = IntOffset(
-                                            x = Random.nextInt(maxX + 1),
-                                            y = Random.nextInt(maxY + 1)
-                                        )
-                                        delay(10000)
-                                    }
-                                }
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(Color.Black)
-                                    .onSizeChanged { containerSize = it }
-                                    .clickable {
-                                        toneGenerator?.startTone(ToneGenerator.TONE_PROP_ACK, 150)
-                                        service.showUi()
-                                    }
-                            ) {
-                                Image(
-                                    painter = painterResource(id = R.mipmap.ic_launcher_foreground),
-                                    contentDescription = null,
-                                    modifier = Modifier
-                                        .size(iconSize)
-                                        .offset { iconOffset }
-                                )
+                            Overlay {
+                                toneGenerator?.startTone(ToneGenerator.TONE_PROP_ACK, 150)
+                                service.showUi()
                             }
                         }
                     }
@@ -184,5 +166,43 @@ class MainActivity : ComponentActivity() {
             unbindService(connection)
             isBound = false
         }
+    }
+}
+
+@Composable
+private fun Overlay(onOverlayClick: () -> Unit) {
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .clickable { onOverlayClick() }
+    ) {
+        var iconOffset by remember { mutableStateOf(IntOffset.Zero) }
+        val iconSize = 256.dp
+        val density = LocalDensity.current
+
+        LaunchedEffect(Unit) {
+            val maxWidthPx = with(density) { maxWidth.toPx() }
+            val maxHeightPx = with(density) { maxHeight.toPx() }
+            val iconSizePx = with(density) { iconSize.roundToPx() }
+
+            while (true) {
+                val maxX = (maxWidthPx - iconSizePx).coerceAtLeast(0F)
+                val maxY = (maxHeightPx - iconSizePx).coerceAtLeast(0F)
+                iconOffset = IntOffset(
+                    x = Random.nextInt(maxX.toInt() + 1),
+                    y = Random.nextInt(maxY.toInt() + 1)
+                )
+                delay(10000)
+            }
+        }
+
+        Image(
+            painter = painterResource(id = R.mipmap.ic_launcher_foreground),
+            contentDescription = null,
+            modifier = Modifier
+                .size(iconSize)
+                .offset { iconOffset }
+        )
     }
 }

@@ -3,6 +3,7 @@ package com.example.stopwatchapp.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -44,12 +45,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.stopwatchapp.Lap
 import com.example.stopwatchapp.SessionState
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TrackPaceScreen(
-    state: SessionState,
+    isRunning: Boolean,
+    elapsedTime: () -> Long,
+    laps: ImmutableList<Lap>,
+    trackDistanceM: Int,
+
     onResetClick: () -> Unit,
     onStopClick: () -> Unit,
     onAddLapClick: () -> Unit,
@@ -86,7 +93,7 @@ fun TrackPaceScreen(
                 shadowElevation = 8.dp
             ) {
                 TrackSelectionToggle(
-                    currentDistance = state.trackDistanceM,
+                    currentDistance = trackDistanceM,
                     onSelect = selectTrack,
                 )
             }
@@ -103,14 +110,14 @@ fun TrackPaceScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                StatItem(label = "LAP", value = "${state.laps.size + 1}")
+                StatItem(label = "LAP", value = "${laps.size + 1}")
                 VerticalDivider(
                     modifier = Modifier
                         .height(40.dp)
                         .padding(horizontal = 8.dp),
                     color = MaterialTheme.colorScheme.outlineVariant
                 )
-                StatItem(label = "TOTAL DIST", value = "${state.laps.sumOf { it.distanceM }}m")
+                StatItem(label = "TOTAL DIST", value = "${laps.sumOf { it.distanceM }}m")
                 VerticalDivider(
                     modifier = Modifier
                         .height(40.dp)
@@ -118,7 +125,8 @@ fun TrackPaceScreen(
                     color = MaterialTheme.colorScheme.outlineVariant
                 )
                 // Real-time Total Time: sum of completed laps + current lap elapsed time
-                val totalTimeMs = state.laps.sumOf { it.durationMs } + state.elapsedTime
+                val elapsedTime = elapsedTime()
+                val totalTimeMs = laps.sumOf { it.durationMs } + elapsedTime
                 StatItem(label = "TOTAL TIME", value = formatTime(totalTimeMs))
             }
 
@@ -139,7 +147,7 @@ fun TrackPaceScreen(
                 ) {
                     // Last Lap Pace
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        val lastPace = state.laps.firstOrNull()?.paceMinKm ?: "--:--"
+                        val lastPace = laps.firstOrNull()?.paceMinKm ?: "--:--"
                         Text(
                             text = lastPace,
                             style = MaterialTheme.typography.headlineLarge.copy(
@@ -162,8 +170,8 @@ fun TrackPaceScreen(
 
                     // Average Pace
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        val totalDurationMs = state.laps.sumOf { it.durationMs }
-                        val totalDistanceM = state.laps.sumOf { it.distanceM }
+                        val totalDurationMs = laps.sumOf { it.durationMs }
+                        val totalDistanceM = laps.sumOf { it.distanceM }
                         val avgPace = if (totalDistanceM > 0) {
                             val totalSeconds = totalDurationMs / 1000.0
                             val paceDecimal = (totalSeconds * 1000.0) / (60.0 * totalDistanceM)
@@ -193,7 +201,7 @@ fun TrackPaceScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(
-                text = formatTime(state.elapsedTime),
+                text = formatTime(elapsedTime()),
                 style = MaterialTheme.typography.displayMedium.copy(
                     fontSize = 32.sp,
                     fontFamily = FontFamily.Monospace,
@@ -211,15 +219,15 @@ fun TrackPaceScreen(
                 Button(
                     onClick = onStopClick,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (state.isRunning) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                        contentColor = if (state.isRunning) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary
+                        containerColor = if (isRunning) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                        contentColor = if (isRunning) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary
                     ),
                     modifier = Modifier
                         .weight(1.2f)
                         .height(64.dp)
                 ) {
                     Text(
-                        if (state.isRunning) "STOP" else "START",
+                        if (isRunning) "STOP" else "START",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
@@ -227,7 +235,7 @@ fun TrackPaceScreen(
 
                 FilledTonalButton(
                     onClick = onAddLapClick,
-                    enabled = state.isRunning,
+                    enabled = isRunning,
                     modifier = Modifier
                         .weight(1f)
                         .height(64.dp)
@@ -260,16 +268,21 @@ fun TrackPaceScreen(
             }
 
             // Lap List
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-            ) {
-                items(state.laps) { lap ->
-                    LapRow(lap)
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                }
-            }
+            LapList(laps)
+        }
+    }
+}
+
+@Composable
+private fun ColumnScope.LapList(laps: ImmutableList<Lap>) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxWidth()
+            .weight(1f)
+    ) {
+        items(laps) { lap ->
+            LapRow(lap)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
     }
 }
@@ -360,7 +373,7 @@ private fun formatTime(ms: Long): String {
     val minutes = (totalSecs % 3600) / 60
     val seconds = totalSecs % 60
     val hundredths = (ms % 1000) / 10
-    
+
     return if (hours > 0) {
         String.format(Locale.getDefault(), "%d:%02d:%02d.%02d", hours, minutes, seconds, hundredths)
     } else {
@@ -373,19 +386,16 @@ private fun formatTime(ms: Long): String {
 @Preview
 fun TrackPaceScreenPreview() {
     TrackPaceScreen(
-        state = SessionState(
-            isRunning = true,
-            startTime = 0,
-            elapsedTime = 12345,
-            laps = listOf(
-                Lap(1, 45000, 370, "2:01"),
-                Lap(2, 42000, 370, "1:53"),
-            ),
-            trackDistanceM = 370
+        isRunning = true,
+        elapsedTime = { 12345 },
+        laps = persistentListOf(
+            Lap(1, 45000, 370, "2:01"),
+            Lap(2, 42000, 370, "1:53"),
         ),
+        trackDistanceM = 370,
         onResetClick = {},
         onStopClick = {},
         onAddLapClick = {},
-        selectTrack = {}
+        selectTrack = {},
     )
 }

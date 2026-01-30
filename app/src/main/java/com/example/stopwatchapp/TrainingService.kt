@@ -1,5 +1,6 @@
 package com.example.stopwatchapp
 
+import android.R
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -8,17 +9,21 @@ import android.app.Service
 import android.content.Intent
 import android.os.Binder
 import android.os.IBinder
+import android.os.SystemClock
 import android.speech.tts.TextToSpeech
 import androidx.core.app.NotificationCompat
+import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -36,6 +41,7 @@ class TrainingService : Service(), TextToSpeech.OnInitListener {
 
     private val _sessionState = MutableStateFlow(SessionState())
     val sessionState: StateFlow<SessionState> = _sessionState.asStateFlow()
+    val trackUiVisible: Flow<Boolean> = _sessionState.map { it.isUiVisible }
 
     private var timerJob: Job? = null
     private var uiHideJob: Job? = null
@@ -102,9 +108,16 @@ class TrainingService : Service(), TextToSpeech.OnInitListener {
     private fun startTimer() {
         timerJob?.cancel()
         timerJob = serviceScope.launch {
+            var lastTick = SystemClock.elapsedRealtime()
+
             while (isActive) {
-                delay(100)
-                _sessionState.update { it.copy(elapsedTime = it.elapsedTime + 100) }
+                delay(100) // Smaller delay for smoother UI if showing hundredths
+
+                val currentTick = SystemClock.elapsedRealtime()
+                val timeDelta = currentTick - lastTick
+                lastTick = currentTick
+
+                _sessionState.update { it.copy(elapsedTime = it.elapsedTime + timeDelta) }
                 updateNotification()
             }
         }
@@ -145,10 +158,10 @@ class TrainingService : Service(), TextToSpeech.OnInitListener {
 
             val durationMs = current.elapsedTime
             val distanceM = current.trackDistanceM
-            val paceMinKm = calculatePace(durationMs, distanceM)
+            val paceMinKm = PaceCalculator.calculatePace(durationMs, distanceM)
             val newLap = Lap(current.laps.size + 1, durationMs, distanceM, paceMinKm)
             speakPace(paceMinKm)
-            current.copy(elapsedTime = 0, laps = listOf(newLap) + current.laps)
+            current.copy(elapsedTime = 0, laps = (listOf(newLap) + current.laps).toPersistentList())
         }
         saveState()
     }
@@ -163,15 +176,6 @@ class TrainingService : Service(), TextToSpeech.OnInitListener {
     fun setTrackDistance(distanceM: Int) {
         _sessionState.update { it.copy(trackDistanceM = distanceM) }
         saveState()
-    }
-
-    private fun calculatePace(ms: Long, distanceM: Int): String {
-        if (distanceM == 0) return "0:00"
-        val seconds = ms / 1000.0
-        val paceDecimal = (seconds * 1000.0) / (60.0 * distanceM)
-        val minutes = paceDecimal.toInt()
-        val secs = ((paceDecimal - minutes) * 60).toInt()
-        return String.format(Locale.getDefault(), "%d:%02d", minutes, secs)
     }
 
     private fun saveState() {
@@ -190,7 +194,7 @@ class TrainingService : Service(), TextToSpeech.OnInitListener {
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("TrackPace Active")
             .setContentText("Timer: ${formatTime(_sessionState.value.elapsedTime)}")
-            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setSmallIcon(R.drawable.ic_media_play)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
 
