@@ -44,7 +44,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.stopwatchapp.Lap
-import com.example.stopwatchapp.SessionState
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import java.util.Locale
@@ -56,9 +55,8 @@ fun TrackPaceScreen(
     elapsedTime: () -> Long,
     laps: ImmutableList<Lap>,
     trackDistanceM: Int,
-
     onResetClick: () -> Unit,
-    onStopClick: () -> Unit,
+    onToggleStartPauseClick: () -> Unit,
     onAddLapClick: () -> Unit,
     selectTrack: (Int) -> Unit,
 ) {
@@ -125,8 +123,8 @@ fun TrackPaceScreen(
                     color = MaterialTheme.colorScheme.outlineVariant
                 )
                 // Real-time Total Time: sum of completed laps + current lap elapsed time
-                val elapsedTime = elapsedTime()
-                val totalTimeMs = laps.sumOf { it.durationMs } + elapsedTime
+                val currentLapTime = elapsedTime()
+                val totalTimeMs = laps.sumOf { it.durationMs } + currentLapTime
                 StatItem(label = "TOTAL TIME", value = formatTime(totalTimeMs))
             }
 
@@ -217,17 +215,17 @@ fun TrackPaceScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Button(
-                    onClick = onStopClick,
+                    onClick = onToggleStartPauseClick,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isRunning) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                        contentColor = if (isRunning) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary
+                        containerColor = if (isRunning) Color(0xFFFFA000) else MaterialTheme.colorScheme.primary, // Amber for Pause
+                        contentColor = if (isRunning) Color.White else MaterialTheme.colorScheme.onPrimary
                     ),
                     modifier = Modifier
                         .weight(1.2f)
                         .height(64.dp)
                 ) {
                     Text(
-                        if (isRunning) "STOP" else "START",
+                        if (isRunning) "PAUSE" else if (elapsedTime() > 0F) "RESUME" else "START",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
@@ -394,7 +392,7 @@ fun TrackPaceScreenPreview() {
         ),
         trackDistanceM = 370,
         onResetClick = {},
-        onStopClick = {},
+        onToggleStartPauseClick = {},
         onAddLapClick = {},
         selectTrack = {},
     )

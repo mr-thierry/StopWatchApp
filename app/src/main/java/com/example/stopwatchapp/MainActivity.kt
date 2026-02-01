@@ -113,7 +113,7 @@ class MainActivity : ComponentActivity() {
                                 trackDistanceM = state.trackDistanceM,
 
                                 onResetClick = { service.resetSession() },
-                                onStopClick = { service.toggleStartStop() },
+                                onToggleStartPauseClick = { service.toggleStartPause() },
                                 onAddLapClick = { service.addLap() },
                                 selectTrack = { distance -> service.setTrackDistance(distance) },
                             )
@@ -146,7 +146,7 @@ class MainActivity : ComponentActivity() {
         when (keyCode) {
             KeyEvent.KEYCODE_VOLUME_UP -> {
                 trainingService?.showUi()
-                trainingService?.toggleStartStop()
+                trainingService?.toggleStartPause()
                 return true
             }
 
