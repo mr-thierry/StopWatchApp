@@ -111,9 +111,9 @@ class MainActivity : ComponentActivity() {
                                 elapsedTime = { state.elapsedTime },
                                 laps = state.laps,
                                 trackDistanceM = state.trackDistanceM,
-
                                 onResetClick = { service.resetSession() },
                                 onToggleStartPauseClick = { service.toggleStartPause() },
+                                onSplitLastLapClick = { service.splitLastLap() },
                                 onAddLapClick = { service.addLap() },
                                 selectTrack = { distance -> service.setTrackDistance(distance) },
                             )

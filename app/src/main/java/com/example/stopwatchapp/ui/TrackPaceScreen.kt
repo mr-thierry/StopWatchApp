@@ -58,6 +58,7 @@ fun TrackPaceScreen(
     onResetClick: () -> Unit,
     onToggleStartPauseClick: () -> Unit,
     onAddLapClick: () -> Unit,
+    onSplitLastLapClick: () -> Unit,
     selectTrack: (Int) -> Unit,
 ) {
     var showResetDialog by remember { mutableStateOf(false) }
@@ -196,7 +197,7 @@ fun TrackPaceScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             Text(
                 text = formatTime(elapsedTime()),
@@ -208,21 +209,20 @@ fun TrackPaceScreen(
                 color = MaterialTheme.colorScheme.onBackground
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Button(
+                FilledTonalButton(
                     onClick = onToggleStartPauseClick,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (isRunning) Color(0xFFFFA000) else MaterialTheme.colorScheme.primary, // Amber for Pause
                         contentColor = if (isRunning) Color.White else MaterialTheme.colorScheme.onPrimary
                     ),
                     modifier = Modifier
-                        .weight(1.2f)
-                        .height(64.dp)
+                        .weight(1f)
                 ) {
                     Text(
                         if (isRunning) "PAUSE" else if (elapsedTime() > 0F) "RESUME" else "START",
@@ -231,23 +231,45 @@ fun TrackPaceScreen(
                     )
                 }
 
-                FilledTonalButton(
+                OutlinedButton(
                     onClick = onAddLapClick,
-                    enabled = isRunning,
                     modifier = Modifier
                         .weight(1f)
-                        .height(64.dp)
                 ) {
                     Text("LAP", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 }
 
-                IconButton(
+
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+
+                FilledTonalButton(
+                    onClick = onSplitLastLapClick,
+                    enabled = laps.isNotEmpty(),
+                    modifier = Modifier
+                        .weight(1f)
+                ) {
+                    Text(
+                        text = "SPLIT",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                }
+
+                FilledTonalButton(
                     onClick = { showResetDialog = true },
                     modifier = Modifier
-                        .size(64.dp)
-                        .background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.medium)
+                        .weight(1f)
                 ) {
-                    Text("RESET", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        text = "RESET",
+                        style = MaterialTheme.typography.titleLarge
+                    )
                 }
             }
 
@@ -395,5 +417,6 @@ fun TrackPaceScreenPreview() {
         onToggleStartPauseClick = {},
         onAddLapClick = {},
         selectTrack = {},
+        onSplitLastLapClick = {},
     )
 }

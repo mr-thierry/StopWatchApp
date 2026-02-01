@@ -153,16 +153,37 @@ class TrainingService : Service(), TextToSpeech.OnInitListener {
     fun addLap() {
         showUi()
         _sessionState.update { current ->
-            if (!current.isRunning) {
-                return@update current
-            }
-
             val durationMs = current.elapsedTime
             val distanceM = current.trackDistanceM
             val paceMinKm = PaceCalculator.calculatePace(durationMs, distanceM)
             val newLap = Lap(current.laps.size + 1, durationMs, distanceM, paceMinKm)
             speakPace(paceMinKm)
             current.copy(elapsedTime = 0, laps = (listOf(newLap) + current.laps).toPersistentList())
+        }
+        saveState()
+    }
+
+    fun splitLastLap() {
+        showUi()
+        _sessionState.update { current ->
+            if (current.laps.isEmpty()) {
+                return@update current
+            }
+
+            val lastLap = current.laps.first()
+            val remainingLaps = current.laps.drop(1)
+
+            val splitDuration = lastLap.durationMs / 2
+            val splitDistance = lastLap.distanceM
+            val splitPace = PaceCalculator.calculatePace(splitDuration, splitDistance)
+
+            // The original last lap was lap N.
+            // It is now replaced by lap N and lap N+1.
+            val newLapN = lastLap.copy(durationMs = splitDuration, paceMinKm = splitPace)
+            val newLapNPlus1 = Lap(lastLap.lapNumber + 1, splitDuration, splitDistance, splitPace)
+
+            val newList = (listOf(newLapNPlus1, newLapN) + remainingLaps).toPersistentList()
+            current.copy(laps = newList)
         }
         saveState()
     }
