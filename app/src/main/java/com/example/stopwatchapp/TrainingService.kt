@@ -23,10 +23,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import timber.log.Timber
 import java.util.Locale
 
@@ -56,14 +58,17 @@ class TrainingService : Service(), TextToSpeech.OnInitListener {
         super.onCreate()
 
         dataStoreManager = DataStoreManager(applicationContext)
+
+        runBlocking {
+            dataStoreManager.sessionState.first() .let { _sessionState.value = it }
+        }
+
         tts = TextToSpeech(this, this)
 
         createNotificationChannel()
     }
 
     fun showUi() {
-        Timber.d("TRLOG showUi")
-
         _sessionState.update { it.copy(isUiVisible = true) }
         uiHideJob?.cancel()
 
