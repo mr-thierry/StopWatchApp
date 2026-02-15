@@ -15,11 +15,11 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
@@ -35,16 +35,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat.Type.systemBars
 import androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+import com.example.stopwatchapp.ui.Overlay
 import com.example.stopwatchapp.ui.TrackPaceScreen
 import com.example.stopwatchapp.ui.theme.AppTheme
+import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.delay
+import java.time.LocalDateTime
 import kotlin.random.Random
+import java.time.format.DateTimeFormatter
 
 class MainActivity : ComponentActivity() {
 
@@ -104,8 +107,8 @@ class MainActivity : ComponentActivity() {
                     }
 
                     Box(modifier = Modifier.fillMaxSize()) {
+                        val state by service.sessionState.collectAsState()
                         if (trackUiVisible) {
-                            val state by service.sessionState.collectAsState()
                             TrackPaceScreen(
                                 isRunning = state.isRunning,
                                 elapsedTime = { state.elapsedTime },
@@ -114,6 +117,7 @@ class MainActivity : ComponentActivity() {
                                 onResetClick = { service.resetSession() },
                                 onToggleStartPauseClick = { service.toggleStartPause() },
                                 onSplitLastLapClick = { service.splitLastLap() },
+                                onDeleteLapClick = { lapNumber -> service.deleteLap(lapNumber) },
                                 onAddLapClick = { service.addLap() },
                                 selectTrack = { distance -> service.setTrackDistance(distance) },
                             )
@@ -124,10 +128,13 @@ class MainActivity : ComponentActivity() {
                             enter = fadeIn(),
                             exit = fadeOut(),
                         ) {
-                            Overlay {
-                                toneGenerator?.startTone(ToneGenerator.TONE_PROP_ACK, 150)
-                                service.showUi()
-                            }
+                            Overlay(
+                                laps = state.laps,
+                                onOverlayClick = {
+                                    toneGenerator?.startTone(ToneGenerator.TONE_PROP_ACK, 150)
+                                    service.showUi()
+                                }
+                            )
                         }
                     }
                 } else {
@@ -144,12 +151,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         when (keyCode) {
-            KeyEvent.KEYCODE_VOLUME_UP -> {
-                trainingService?.showUi()
-                trainingService?.toggleStartPause()
-                return true
-            }
-
+            KeyEvent.KEYCODE_VOLUME_UP,
             KeyEvent.KEYCODE_VOLUME_DOWN -> {
                 trainingService?.showUi()
                 trainingService?.addLap()
@@ -166,43 +168,5 @@ class MainActivity : ComponentActivity() {
             unbindService(connection)
             isBound = false
         }
-    }
-}
-
-@Composable
-private fun Overlay(onOverlayClick: () -> Unit) {
-    BoxWithConstraints(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
-            .clickable { onOverlayClick() }
-    ) {
-        var iconOffset by remember { mutableStateOf(IntOffset.Zero) }
-        val iconSize = 256.dp
-        val density = LocalDensity.current
-
-        LaunchedEffect(Unit) {
-            val maxWidthPx = with(density) { maxWidth.toPx() }
-            val maxHeightPx = with(density) { maxHeight.toPx() }
-            val iconSizePx = with(density) { iconSize.roundToPx() }
-
-            while (true) {
-                val maxX = (maxWidthPx - iconSizePx).coerceAtLeast(0F)
-                val maxY = (maxHeightPx - iconSizePx).coerceAtLeast(0F)
-                iconOffset = IntOffset(
-                    x = Random.nextInt(maxX.toInt() + 1),
-                    y = Random.nextInt(maxY.toInt() + 1)
-                )
-                delay(10000)
-            }
-        }
-
-        Image(
-            painter = painterResource(id = R.mipmap.ic_launcher_foreground),
-            contentDescription = null,
-            modifier = Modifier
-                .size(iconSize)
-                .offset { iconOffset }
-        )
     }
 }

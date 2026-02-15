@@ -188,6 +188,21 @@ class TrainingService : Service(), TextToSpeech.OnInitListener {
         saveState()
     }
 
+    fun deleteLap(lapNumber: Int) {
+        _sessionState.update { current ->
+            // Filter out the lap with the given number
+            val filteredLaps = current.laps.filter { it.lapNumber != lapNumber }.reversed()
+            
+            // Re-index the remaining laps
+            val reindexedLaps = filteredLaps.mapIndexed { index, lap ->
+                lap.copy(lapNumber = index + 1)
+            }.reversed()
+
+            current.copy(laps = reindexedLaps.toPersistentList())
+        }
+        saveState()
+    }
+
     fun resetSession() {
         stopTimer()
         _sessionState.value = SessionState(trackDistanceM = _sessionState.value.trackDistanceM)

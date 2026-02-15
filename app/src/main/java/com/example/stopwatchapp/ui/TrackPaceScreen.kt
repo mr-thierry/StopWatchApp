@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -22,6 +24,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -59,6 +62,7 @@ fun TrackPaceScreen(
     onToggleStartPauseClick: () -> Unit,
     onAddLapClick: () -> Unit,
     onSplitLastLapClick: () -> Unit,
+    onDeleteLapClick: (Int) -> Unit,
     selectTrack: (Int) -> Unit,
 ) {
     var showResetDialog by remember { mutableStateOf(false) }
@@ -82,6 +86,29 @@ fun TrackPaceScreen(
             }
         )
     }
+
+    var lapToDelete by remember { mutableStateOf<Lap?>(null) }
+    lapToDelete?.let { lap ->
+        AlertDialog(
+            onDismissRequest = { lapToDelete = null },
+            title = { Text("Delete Lap ${lap.lapNumber}?") },
+            text = { Text("Are you sure you want to delete this lap?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDeleteLapClick(lap.lapNumber)
+                    lapToDelete = null
+                }) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { lapToDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -285,23 +312,26 @@ fun TrackPaceScreen(
                 Text("LAP", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.outline)
                 Text("TIME", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.outline)
                 Text("PACE", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.outline)
+                Spacer(modifier = Modifier.size(48.dp)) // For delete button
             }
 
             // Lap List
-            LapList(laps)
+            LapList(laps) { lap ->
+                lapToDelete = lap
+            }
         }
     }
 }
 
 @Composable
-private fun ColumnScope.LapList(laps: ImmutableList<Lap>) {
+private fun ColumnScope.LapList(laps: ImmutableList<Lap>, onDeleteClick: (Lap) -> Unit) {
     LazyColumn(
         modifier = Modifier
             .fillMaxWidth()
             .weight(1f)
     ) {
         items(laps) { lap ->
-            LapRow(lap)
+            LapRow(lap, onDeleteClick = { onDeleteClick(lap) })
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
     }
@@ -325,7 +355,7 @@ fun StatItem(label: String, value: String) {
 }
 
 @Composable
-fun LapRow(lap: Lap) {
+fun LapRow(lap: Lap, onDeleteClick: () -> Unit) {
     Surface(
         color = Color.Transparent,
         modifier = Modifier.fillMaxWidth()
@@ -333,7 +363,7 @@ fun LapRow(lap: Lap) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 16.dp, horizontal = 8.dp),
+                .padding(vertical = 4.dp, horizontal = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -354,6 +384,13 @@ fun LapRow(lap: Lap) {
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Black
             )
+            IconButton(onClick = onDeleteClick) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Delete Lap",
+                    tint = MaterialTheme.colorScheme.error
+                )
+            }
         }
     }
 }
@@ -418,5 +455,6 @@ fun TrackPaceScreenPreview() {
         onAddLapClick = {},
         selectTrack = {},
         onSplitLastLapClick = {},
+        onDeleteLapClick = {},
     )
 }

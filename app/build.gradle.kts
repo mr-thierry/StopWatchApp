@@ -53,6 +53,7 @@ dependencies {
     implementation(libs.timber)
     implementation(libs.kotlinx.immutable)
     implementation(libs.androidx.compose.animation)
+    implementation(libs.androidx.compose.material.icons.extended)
 
 
     testImplementation(libs.junit)
